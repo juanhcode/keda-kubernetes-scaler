@@ -4,9 +4,8 @@ Este repositorio contiene un ejemplo completo de cómo implementar **KEDA (Kuber
 
 ## 📦 Componentes del ejemplo
 
-- `redis-deployment.yaml`: despliega Redis y su servicio.
-- `redis-worker-script-configmap.yaml`: define el script en Python que escucha la cola Redis.
-- `redis-worker-deployment.yaml`: define el deployment del worker (escalado por KEDA).
+- `redis.yaml`: despliega Redis y su servicio.
+- `redis-worker.yaml`: define el deployment del worker (escalado por KEDA).
 - `keda-scaledobject.yaml`: define el `ScaledObject` de KEDA que vincula Redis con el worker.
 - `namespaces.yaml`: crea el namespace `keda`.
 - `kustomization.yaml`: orquesta los recursos.
