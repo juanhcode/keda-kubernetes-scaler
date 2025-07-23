@@ -1,93 +1,121 @@
-# KEDA + Redis Worker Autoscaling Example
+# ⚙️ KEDA + Redis Worker Autoscaling Example
 
-Este repositorio contiene un ejemplo completo de cómo implementar **KEDA (Kubernetes-based Event Driven Autoscaler)** para escalar automáticamente un **worker en Python** según la longitud de una lista en **Redis**.
+Este repositorio contiene un ejemplo práctico de cómo utilizar **KEDA (Kubernetes-based Event Driven Autoscaler)** para escalar automáticamente un **worker en Python** según la cantidad de tareas pendientes en una cola Redis (`list`).
 
-## 📦 Componentes del ejemplo
+---
 
-- `redis.yaml`: despliega Redis y su servicio.
-- `redis-worker.yaml`: define el deployment del worker (escalado por KEDA).
-- `keda-scaledobject.yaml`: define el `ScaledObject` de KEDA que vincula Redis con el worker.
+## 📦 Componentes incluidos
+
+- `redis.yaml`: despliega una instancia de Redis y su servicio.
+- `redis-worker.yaml`: despliega el `Deployment` del worker Python.
+- `keda-scaledobject.yaml`: define el `ScaledObject` de KEDA que escala el worker en función de la longitud de la cola Redis.
 - `namespaces.yaml`: crea el namespace `keda`.
-- `kustomization.yaml`: orquesta los recursos.
+- `kustomization.yaml`: orquesta todos los recursos con Kustomize.
+- `Dockerfile`: construye la imagen del worker Python.
+- `worker.py`: script Python que escucha tareas desde Redis.
+
+---
 
 ## 🚀 Requisitos
 
-- Kubernetes cluster (local o en la nube)
-- `kubectl` configurado
-- Acceso a internet para descargar manifiestos
+- Un clúster de Kubernetes (local con Minikube o en la nube)
+- `kubectl` configurado y apuntando al clúster
+- Acceso a internet
 - [KEDA instalado](https://keda.sh/docs/)
+- Docker para construir la imagen del worker
+
+---
 
 ## 🛠 Instalación paso a paso
 
-### 1. Instalar KEDA en tu clúster
+### 1. Instalar KEDA
 
 ```bash
-kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.17.2/keda-2.17.2.yaml
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+helm install keda kedacore/keda   --version 2.17.2   --namespace keda   --create-namespace
 ```
 
-### 2. Aplicar los manifiestos del proyecto
+### 2. 🐳 (Opcional) Construir tu propia imagen del worker
+
+Si deseas modificar el script del `worker.py` y construir tu propia imagen, puedes usar el `Dockerfile` incluido:
 
 ```bash
-kubectl apply -f namespaces.yaml
-kubectl apply -f kustomization.yaml
-kubectl apply -f redis.yaml
-kubectl apply -f redis-worker.yaml
-kubectl apply -f keda-scaledobject.yaml
+docker build -t <tu-usuario>/redis-worker:latest .
+docker push <tu-usuario>/redis-worker:latest
 ```
 
-> 📌 Asegúrate de estar en el contexto y namespace correctos si usas `kubens`.
+Luego modifica `redis-worker.yaml` para usar tu imagen personalizada.
+
+💡 Por defecto, ya puedes usar la imagen preconstruida desde Docker Hub publicada por el autor de este ejemplo.
+
+### 3. Aplicar los manifiestos con Kustomize
+
+```bash
+kubectl apply -k .
+```
+
+---
 
 ## 💡 ¿Cómo funciona?
 
-- Un **Deployment Redis** ejecuta una cola (`list`) llamada `myqueue`.
-- El **worker en Python** (dentro de un contenedor) escucha tareas de esa cola.
-- **KEDA** observa la longitud de la lista `myqueue` en Redis.
-- Cuando hay más de 5 elementos en la cola, KEDA escalará el deployment `redis-worker` hasta 5 réplicas.
-- Si la cola se vacía, las réplicas bajan nuevamente a 0.
+- El **script `worker.py`** escucha tareas de una lista Redis (`myqueue`) usando `redis-py`.
+- **KEDA** monitorea la longitud de esa lista.
+- Si hay más de 5 tareas en la cola, KEDA escalará el deployment del worker hasta 5 réplicas.
+- Cuando la cola se vacía, reduce el número de réplicas automáticamente a 0.
+
+---
 
 ## 🧪 Pruebas y validación
 
 ### Enviar tareas a Redis
 
-Abre un shell en el pod de Redis:
+Ejecuta un shell en el pod de Redis:
 
 ```bash
 kubectl exec -it deploy/redis -- sh
 ```
 
-Y dentro, ejecuta este bucle para enviar tareas en lotes de 40:
+Desde ahí, usa este script para empujar tareas:
 
 ```bash
 i=1; while true; do echo "Enviando tareas del $i al $((i+39))"; for j in $(seq $i $((i+39))); do redis-cli -h redis rpush myqueue "task$j"; done; i=$((i+40)); sleep 10; done
 ```
 
-### Ver los pods escalar
+### Observar el escalado
 
 ```bash
-kubectl get pods
+kubectl get pods -n keda
 ```
 
-Deberías ver cómo el deployment `redis-worker` escala hacia arriba y luego hacia abajo automáticamente.
+Deberías ver cómo los pods `redis-worker` aumentan o disminuyen según la carga.
+
+---
 
 ## 📂 Estructura del proyecto
 
 ```
 .
-├── charts/                          # (opcional, si usas Helm)
-├── kustomization.yaml
-├── namespaces.yaml
-├── redis-deployment.yaml
-├── redis-worker-deployment.yaml
-├── redis-worker-script-configmap.yaml
-├── keda-scaledobject.yaml
+├── Dockerfile                         # Imagen del worker
+├── keda-scaledobject.yaml            # ScaledObject de KEDA
+├── kustomization.yaml                # Orquestador de recursos
+├── namespaces.yaml                   # Namespace para KEDA
+├── redis.yaml                        # Redis deployment + service
+├── redis-worker.yaml                 # Worker deployment
+├── redis-worker-script-configmap.yaml # Script del worker como ConfigMap
+├── worker.py                         # Código Python del worker
+└── README.md
 ```
-
-## 📖 Recursos útiles
-
-- [KEDA Docs](https://keda.sh/)
-- [Redis CLI](https://redis.io/docs/ui/cli/)
-- [Kustomize](https://kustomize.io/)
 
 ---
 
-Este ejemplo es ideal para entender cómo **KEDA puede escalar cargas de trabajo según eventos externos**, como la longitud de una lista en Redis. 🎯
+## 📖 Recursos útiles
+
+- [KEDA Documentation](https://keda.sh/)
+- [Redis CLI](https://redis.io/docs/ui/cli/)
+- [Kustomize](https://kustomize.io/)
+- [Docker](https://docs.docker.com/)
+
+---
+
+Este ejemplo es perfecto para aprender cómo escalar automáticamente cargas de trabajo en Kubernetes usando eventos de mensajería, como una cola en Redis. También puedes extender este patrón a otros sistemas como Kafka, RabbitMQ, Azure Queue, entre otros. ⚡️
