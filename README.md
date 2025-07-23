@@ -85,7 +85,7 @@ i=1; while true; do echo "Enviando tareas del $i al $((i+39))"; for j in $(seq $
 ### Observar el escalado
 
 ```bash
-kubectl get pods -n keda
+kubectl get pods 
 ```
 
 Deberías ver cómo los pods `redis-worker` aumentan o disminuyen según la carga.
